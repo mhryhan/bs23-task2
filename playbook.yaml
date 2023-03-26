@@ -13,6 +13,7 @@
       # https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-using-native-package-management
       curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
       echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
   - name: kubernetes install
     apt:
       name:
@@ -22,16 +23,42 @@
       - kubeadm
       - kubelet
       state: present
+
   - name: configure containerd
     shell: |
       sed -i /disabled_plugins/d /etc/containerd/config.toml
       systemctl restart containerd
+
   - name: create cluster
     command: kubeadm init
     when: ansible_hostname is search('master')
-  - name: create cluster
-    command: kubeadm token create --print-join-command
+
+  - name: create token
+    shell: kubeadm token create --print-join-command > /tmp/kubeadm-token.txt
     when: ansible_hostname is search('master')
-  - name: join cluster
-    command: "{{ join.stdout }}"
+
+  - name: fetch token from master
+    fetch:
+      src: /tmp/kubeadm-token.txt
+      dest: /tmp/kubeadm-token.txt
+      flat: yes
+    when: ansible_hostname is search('master')
+
+  - name: upload token to workers
+    copy:
+      src: /tmp/kubeadm-token.txt
+      dest: /tmp/kubeadm-token.txt
+      mode: 0744
     when: ansible_hostname is search('worker')
+
+  - name: join cluster
+    command: sh -c /tmp/kubeadm-token.txt
+    when: ansible_hostname is search('worker')
+
+  - name: install cni, metric server and dashboard
+    shell: |
+      export KUBECONFIG=/etc/kubernetes/admin.conf
+      kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+      kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+      kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+    when: ansible_hostname is search('master')
