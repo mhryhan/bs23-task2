@@ -13,6 +13,7 @@ Vagrant.configure("2") do |config|
     config.vm.define "worker#{i}" do |worker|
       worker.vm.hostname = "worker-#{i}"
       worker.vm.provider "virtualbox" do |vb|
+        vb.gui = false
         vb.cpus = 2
         vb.memory = "2048"
       end

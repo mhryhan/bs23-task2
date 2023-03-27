@@ -3,7 +3,7 @@
 
 ```bash
 # this will create the vms
-vagrant init
+vagrant up
 
 # add vm to local ssh config
 vagrant ssh-config master >> ~/.ssh/config
